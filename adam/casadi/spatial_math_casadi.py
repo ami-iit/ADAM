@@ -51,14 +51,18 @@ class SpatialMathCasadi(SpatialMathAbstract):
         T = cls.eye(4)
         R = cls.R_from_RPY(rpy) @ cls.R_from_axis_angle(axis, q)
         T[:3, :3] = R
-        T[:3, 3] = xyz
+        T[0,3] = xyz[0]
+        T[1,3] = xyz[1]
+        T[2,3] = xyz[2]  
         return T
 
     @classmethod
     def H_from_Pos_RPY(cls, xyz, rpy):
         T = cls.eye(4)
         T[:3, :3] = cls.R_from_RPY(rpy)
-        T[:3, 3] = xyz
+        T[0,3] = xyz[0]
+        T[1,3] = xyz[1]
+        T[2,3] = xyz[2] 
         return T
 
     @classmethod
@@ -93,14 +97,25 @@ class SpatialMathCasadi(SpatialMathAbstract):
         IO = cls.zeros(6, 6)
         Sc = cls.skew(c)
         R = cls.R_from_RPY(rpy)
-        inertia_matrix = cs.np.array(
-            [[I.ixx, I.ixy, I.ixz], [I.ixy, I.iyy, I.iyz], [I.ixz, I.iyz, I.izz]]
-        )
-
+        inertia_matrix = I
         IO[3:, 3:] = R @ inertia_matrix @ R.T + mass * Sc @ Sc.T
         IO[3:, :3] = mass * Sc
         IO[:3, 3:] = mass * Sc.T
         IO[:3, :3] = cs.np.eye(3) * mass
+        return IO
+    
+    @classmethod
+    def spatial_inertial_with_parameter(cls, I, mass, c , rpy):
+    # Returns the 6x6 inertia matrix expressed at the origin of the link (with rotation)"""
+        IO = cls.zeros(6,6)
+        Sc = cs.skew(c)
+        R = cls.zeros(3,3)
+        R_temp = cls.R_from_RPY(rpy)    
+        inertia_matrix =cs.vertcat(cs.horzcat(I.ixx,0.0, 0.0), cs.horzcat(0.0, I.iyy, 0.0), cs.horzcat(0.0, 0.0, I.izz))
+        IO[3:, 3:] = R_temp@inertia_matrix@R_temp.T + mass * cs.mtimes(Sc,Sc.T)
+        IO[3:, :3] = mass * Sc
+        IO[:3, 3:] = mass * Sc.T
+        IO[:3, :3] = cls.eye(3)* mass
         return IO
 
     @classmethod
