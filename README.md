@@ -161,6 +161,8 @@ joints_name_list = [
 # Specify the root link
 root_link = 'root_link'
 kinDyn = KinDynComputations(model_path, joints_name_list, root_link)
+# if you want to set body_fixed velocity representation, uncomment the following line
+kinDyn.set_velocity_representation("body_fixed")
 w_H_b = np.eye(4)
 joints = np.ones(len(joints_name_list))
 M = kinDyn.mass_matrix(w_H_b, joints)
@@ -187,6 +189,8 @@ joints_name_list = [
 # Specify the root link
 root_link = 'root_link'
 kinDyn = KinDynComputations(model_path, joints_name_list, root_link)
+# if you want to set body_fixed velocity representation, uncomment the following line
+kinDyn.set_velocity_representation("body_fixed")
 w_H_b = np.eye(4)
 joints = np.ones(len(joints_name_list))
 M = kinDyn.mass_matrix_fun()
@@ -213,6 +217,8 @@ joints_name_list = [
 # Specify the root link
 root_link = 'root_link'
 kinDyn = KinDynComputations(model_path, joints_name_list, root_link)
+# if you want to set body_fixed velocity representation, uncomment the following line
+kinDyn.set_velocity_representation("body_fixed")
 w_H_b = np.eye(4)
 joints = np.ones(len(joints_name_list))
 M = kinDyn.mass_matrix(w_H_b, joints)
@@ -223,7 +229,7 @@ print(M)
 
 **ADAM** is an open-source project. Contributions are very welcome!
 
-Open an issue with your feature request or if you spot a bug. Then, you can also proceed with a Pull-requests! :rocket:
+Open an issue with your feature request or if you spot a bug. Then, you can also proceed with a Pull-requests! 🚀
 
 ## Todo
 
