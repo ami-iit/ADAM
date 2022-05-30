@@ -9,7 +9,7 @@ from adam.core.urdf_tree import URDFTree
 
 class RBDAlgorithms(SpatialMath):
     """This is a small abstract class that implements Rigid body algorithms retrieving robot quantities represented
-    in mixed representation, for Floating Base systems - as humanoid robots.
+    in mixed and body-fixed representation, for Floating Base systems - as humanoid robots.
     """
 
     def __init__(
@@ -33,6 +33,7 @@ class RBDAlgorithms(SpatialMath):
         )
         self.NDoF = len(self.joints_list)
         self.root_link = root_link
+        self.velocity_representation = "mixed"
         self.g = gravity
         (
             self.links_with_inertia,
@@ -40,6 +41,17 @@ class RBDAlgorithms(SpatialMath):
             self.connecting_joints,
             self.tree,
         ) = urdf_tree.load_model()
+
+    def set_velocity_representation(self, representation: str):
+        """Set velocity representation. Possible choises are:
+            - mixed
+            - body_fixed
+            - inertial_fixed
+
+        Args:
+            representation (str): velocity representation
+        """
+        self.velocity_representation = representation
 
     def crba(
         self, base_transform: npt.ArrayLike, joint_positions: npt.ArrayLike
@@ -146,11 +158,12 @@ class RBDAlgorithms(SpatialMath):
 
         # Until now the algorithm returns the joint_position quantities in Body Fixed representation
         # Moving to mixed representation...
-        X_to_mixed = self.eye(self.NDoF + 6)
-        X_to_mixed[:3, :3] = base_transform[:3, :3].T
-        X_to_mixed[3:6, 3:6] = base_transform[:3, :3].T
-        M = X_to_mixed.T @ M @ X_to_mixed
-        Jcm = X_to_mixed[:6, :6].T @ Jcm @ X_to_mixed
+        if self.velocity_representation == "mixed":
+            X_to_mixed = self.eye(self.NDoF + 6)
+            X_to_mixed[:3, :3] = base_transform[:3, :3].T
+            X_to_mixed[3:6, 3:6] = base_transform[:3, :3].T
+            M = X_to_mixed.T @ M @ X_to_mixed
+            Jcm = X_to_mixed[:6, :6].T @ Jcm @ X_to_mixed
         return M, Jcm
 
     def extract_link_properties(self, link_i):
@@ -211,6 +224,8 @@ class RBDAlgorithms(SpatialMath):
         """
         chain = self.robot_desc.get_chain(self.root_link, frame)
         T_fk = self.eye(4)
+        if self.velocity_representation == "body_fixed":
+            base_transform = self.eye(4).array
         T_fk = T_fk @ base_transform
         J = self.zeros(6, self.NDoF)
         T_ee = self.forward_kinematics(frame, base_transform, joint_positions)
@@ -240,13 +255,22 @@ class RBDAlgorithms(SpatialMath):
                         J[:, joint.idx] = self.vertcat(
                             self.skew(z_prev) @ p_prev, z_prev
                         )
-
-        # Adding the floating base part of the Jacobian, in Mixed representation
-        J_tot = self.zeros(6, self.NDoF + 6)
-        J_tot[:3, :3] = self.eye(3)
-        J_tot[:3, 3:6] = -self.skew((P_ee - base_transform[:3, 3]))
-        J_tot[:3, 6:] = J[:3, :]
-        J_tot[3:, 3:6] = self.eye(3)
+        if self.velocity_representation == "body_fixed":
+            X = self.zeros(6, 6)
+            X[:3, :3] = T_ee[:3, :3].T
+            X[3:6, 3:6] = T_ee[:3, :3].T
+            J = X @ J
+            J_tot = self.zeros(6, self.NDoF + 6)
+            J_tot[:3, :3] = T_ee[:3, :3].T
+            J_tot[:3, 3:6] = -T_ee[:3, :3].T @ self.skew(P_ee)
+            J_tot[:3, 6:] = J[:3, :]
+            J_tot[3:, 3:6] = T_ee[:3, :3].T
+        elif self.velocity_representation == "mixed":
+            J_tot = self.zeros(6, self.NDoF + 6)
+            J_tot[:3, :3] = self.eye(3)
+            J_tot[:3, 3:6] = -self.skew(P_ee - base_transform[:3, 3])
+            J_tot[:3, 6:] = J[:3, :]
+            J_tot[3:, 3:6] = self.eye(3)
         J_tot[3:, 6:] = J[3:, :]
         return J_tot
 
@@ -368,19 +392,24 @@ class RBDAlgorithms(SpatialMath):
         f = [None] * len(self.tree.links)
 
         X_to_mixed = self.eye(6)
-        X_to_mixed[:3, :3] = base_transform[:3, :3].T
-        X_to_mixed[3:6, 3:6] = base_transform[:3, :3].T
-
         acc_to_mixed = self.zeros(6, 1)
-        acc_to_mixed[:3] = (
-            -X_to_mixed[:3, :3] @ self.skew(base_velocity[3:]) @ base_velocity[:3]
-        )
-        acc_to_mixed[3:] = (
-            -X_to_mixed[:3, :3] @ self.skew(base_velocity[3:]) @ base_velocity[3:]
-        )
+        gravity_transform = self.eye(6)
+        gravity_transform[:3, :3] = base_transform[:3, :3].T
+        gravity_transform[3:6, 3:6] = base_transform[:3, :3].T
+
+        if self.velocity_representation == "mixed":
+            X_to_mixed[:3, :3] = base_transform[:3, :3].T
+            X_to_mixed[3:6, 3:6] = base_transform[:3, :3].T
+            acc_to_mixed[:3] = (
+                -X_to_mixed[:3, :3] @ self.skew(base_velocity[3:]) @ base_velocity[:3]
+            )
+            acc_to_mixed[3:] = (
+                -X_to_mixed[:3, :3] @ self.skew(base_velocity[3:]) @ base_velocity[3:]
+            )
         # set initial acceleration (rotated gravity + apparent acceleration)
         # reshape g as a vertical vector
-        a[0] = -X_to_mixed @ g.reshape(6, 1) + acc_to_mixed
+        a[0] = -gravity_transform @ g.reshape(6, 1) + acc_to_mixed
+        print(a[0])
 
         for i in range(self.tree.N):
             link_i = self.tree.links[i]
