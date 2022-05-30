@@ -297,3 +297,18 @@ class SpatialMath(ArrayLike):
             npt.ArrayLike: negative spatial skew matrix traspose
         """
         return -cls.spatial_skew(v).T
+
+    @classmethod
+    def adjoint(cls, R: npt.ArrayLike) -> npt.ArrayLike:
+        """_summary_
+
+        Args:
+            R (npt.ArrayLike): Rotation matrix
+
+        Returns:
+            npt.ArrayLike: adjoint matrix
+        """
+        X = cls.eye(6)
+        X[:3, :3] = R.T
+        X[3:6, 3:6] = R.T
+        return X

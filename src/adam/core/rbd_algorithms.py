@@ -392,23 +392,19 @@ class RBDAlgorithms(SpatialMath):
         f = [None] * len(self.tree.links)
 
         X_to_mixed = self.eye(6)
-        acc_to_mixed = self.zeros(6, 1)
-        gravity_transform = self.eye(6)
-        gravity_transform[:3, :3] = base_transform[:3, :3].T
-        gravity_transform[3:6, 3:6] = base_transform[:3, :3].T
-
+        transformed_acceleration = self.zeros(6, 1)
+        gravity_transform = self.adjoint(base_transform[:3, :3])
         if self.velocity_representation == "mixed":
-            X_to_mixed[:3, :3] = base_transform[:3, :3].T
-            X_to_mixed[3:6, 3:6] = base_transform[:3, :3].T
-            acc_to_mixed[:3] = (
+            X_to_mixed = self.adjoint(base_transform[:3, :3])
+            transformed_acceleration[:3] = (
                 -X_to_mixed[:3, :3] @ self.skew(base_velocity[3:]) @ base_velocity[:3]
             )
-            acc_to_mixed[3:] = (
+            transformed_acceleration[3:] = (
                 -X_to_mixed[:3, :3] @ self.skew(base_velocity[3:]) @ base_velocity[3:]
             )
         # set initial acceleration (rotated gravity + apparent acceleration)
         # reshape g as a vertical vector
-        a[0] = -gravity_transform @ g.reshape(6, 1) + acc_to_mixed
+        a[0] = -gravity_transform @ g.reshape(6, 1) + transformed_acceleration
         print(a[0])
 
         for i in range(self.tree.N):
